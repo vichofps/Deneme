@@ -1,37 +1,90 @@
-# Kafes 1v1 Skripti - Skript 2.9.5 Uyumlu
+# WorldEdit Mantıklı 1v1 Kafes Skripti - Skript 2.9.5 Uyumlu
 
-options:
-    # Kafesin ne kadar büyük olacağını buradan ayarlayabilirsin (Blok cinsinden)
-    kafes_yaricapi: 5 
-
-command /kafes [<text>]:
+command /kafes [<text>] [<text>]:
     permission: op
     trigger:
-        if arg-1 is "ekle":
-            add location of player to {1v1::kafesler::*}
-            send "&aKafes başarıyla eklendi! (Bulunduğunuz konum kafesin merkezi oldu)"
+        if arg-1 is "pos1":
+            set {1v1::temp_pos1::%player%} to location of block at player
+            send "&aPozisyon 1 ayarlandı! (%location of block at player%)"
+        
+        else if arg-1 is "pos2":
+            set {1v1::temp_pos2::%player%} to location of block at player
+            send "&aPozisyon 2 ayarlandı! (%location of block at player%)"
+        
+        else if arg-1 is "ekle":
+            if arg-2 is not set:
+                send "&cKullanım: /kafes ekle <kafes_ismi>"
+                stop
+            if {1v1::temp_pos1::%player%} is not set:
+                send "&cÖnce /kafes pos1 belirlemelisin!"
+                stop
+            if {1v1::temp_pos2::%player%} is not set:
+                send "&cÖnce /kafes pos2 belirlemelisin!"
+                stop
+                
+            set {_isim} to arg-2
+            if {1v1::kafesler::%{_isim}%} is set:
+                send "&cBu isimde bir kafes zaten var!"
+                stop
+                
+            set {1v1::kafesler::%{_isim}%} to {_isim}
+            set {1v1::pos1::%{_isim}%} to {1v1::temp_pos1::%player%}
+            set {1v1::pos2::%{_isim}%} to {1v1::temp_pos2::%player%}
+            
+            delete {1v1::temp_pos1::%player%}
+            delete {1v1::temp_pos2::%player%}
+            send "&a%{_isim}% adlı kafes başarıyla oluşturuldu!"
+            
         else if arg-1 is "cikis":
             set {1v1::cikisnoktasi} to location of player
-            send "&aÇıkış noktası başarıyla ayarlandı! Kazananlar buraya ışınlanacak."
+            send "&aÇıkış noktası ayarlandı! Kazananlar buraya ışınlanacak."
+            
         else if arg-1 is "sil":
-            delete {1v1::kafesler::*}
-            send "&cTüm kafes noktaları silindi!"
+            if arg-2 is not set:
+                send "&cKullanım: /kafes sil <kafes_ismi>"
+                stop
+            delete {1v1::kafesler::%arg-2%}
+            delete {1v1::pos1::%arg-2%}
+            delete {1v1::pos2::%arg-2%}
+            send "&c%arg-2% adlı kafes silindi!"
+            
         else:
-            send "&eKullanım: &f/kafes <ekle|cikis|sil>"
+            send "&eKullanım: &f/kafes <pos1|pos2|ekle|sil|cikis> [kafes_ismi]"
 
 every 1 second:
-    # Tüm kayıtlı kafesleri kontrol et
     loop {1v1::kafesler::*}:
         set {_kafes} to loop-value
-        # Eğer kafes boşsa kontrol yap
+        
+        # Kafes aktif değilse kontrol et
         if {1v1::durum::%{_kafes}%} is not set:
-            set {_icerdekiler::*} to empty list
-            loop all players:
-                # Oyuncu kafes merkezine belirlenen yarıçap kadar yakınsa listeye al
-                if distance between loop-player and {_kafes} is less than or equal to {@kafes_yaricapi}:
-                    add loop-player to {_icerdekiler::*}
+            set {_b1} to {1v1::pos1::%{_kafes}%}
+            set {_b2} to {1v1::pos2::%{_kafes}%}
             
-            # Kafes bölgesinde en az 2 kişi varsa dövüşü başlat
+            # Küpün en düşük ve en yüksek koordinatlarını hesapla
+            set {_minx} to min(x-coord of {_b1}, x-coord of {_b2})
+            set {_maxx} to max(x-coord of {_b1}, x-coord of {_b2})
+            set {_miny} to min(y-coord of {_b1}, y-coord of {_b2})
+            set {_maxy} to max(y-coord of {_b1}, y-coord of {_b2})
+            set {_minz} to min(z-coord of {_b1}, z-coord of {_b2})
+            set {_maxz} to max(z-coord of {_b1}, z-coord of {_b2})
+            
+            set {_icerdekiler::*} to empty list
+            
+            # Oyuncuların küpün içinde olup olmadığını kontrol et
+            loop all players:
+                set {_px} to x-coord of loop-player
+                set {_py} to y-coord of loop-player
+                set {_pz} to z-coord of loop-player
+                
+                if {_px} >= {_minx}:
+                    if {_px} <= ({_maxx} + 1):
+                        if {_py} >= {_miny}:
+                            if {_py} <= ({_maxy} + 1):
+                                if {_pz} >= {_minz}:
+                                    if {_pz} <= ({_maxz} + 1):
+                                        add loop-player to {_icerdekiler::*}
+            
+            # İçeride 2 veya daha fazla kişi varsa kafesi kapat
             if size of {_icerdekiler::*} is greater than or equal to 2:
                 set {1v1::durum::%{_kafes}%} to true
                 set {_p1} to {_icerdekiler::1}
@@ -41,12 +94,24 @@ every 1 second:
                 set {1v1::oyuncu_kafes::%{_p2}%} to {_kafes}
                 set {1v1::oyuncular::%{_kafes}%::*} to {_p1} and {_p2}
                 
-                send "&61v1 Kafes dövüşü başladı!" to {_p1} and {_p2}
+                send "&61v1 Kafes kapandı! Dövüş başladı!" to {_p1} and {_p2}
                 
-                # Etraftaki havayı cama çevir (Küre şeklinde)
-                loop blocks in radius {@kafes_yaricapi} around {_kafes}:
-                    # Sadece en dış katmanı cam yapmak için mesafe kontrolü
-                    if distance between loop-block and {_kafes} is greater than {@kafes_yaricapi} - 1:
+                # Seçili alanın etrafını (sadece dış kabuğu) cama çevir
+                loop blocks within {_b1} and {_b2}:
+                    set {_x} to x-coord of loop-block
+                    set {_y} to y-coord of loop-block
+                    set {_z} to z-coord of loop-block
+                    set {_edge} to false
+                    
+                    if {_x} is {_minx} or {_maxx}:
+                        set {_edge} to true
+                    if {_y} is {_miny} or {_maxy}:
+                        set {_edge} to true
+                    if {_z} is {_minz} or {_maxz}:
+                        set {_edge} to true
+                        
+                    # Eğer blok küpün kenarındaysa ve havaysa cam yap
+                    if {_edge} is true:
                         if loop-block is air:
                             add location of loop-block to {1v1::camlar::%{_kafes}%::*}
                             set block at loop-block to glass
@@ -54,37 +119,31 @@ every 1 second:
 on death of player:
     if {1v1::oyuncu_kafes::%victim%} is set:
         set {_kafes} to {1v1::oyuncu_kafes::%victim%}
-        
         remove victim from {1v1::oyuncular::%{_kafes}%::*}
         set {_kazanan} to {1v1::oyuncular::%{_kafes}%::1}
         
-        # Camları eski haline (havaya) getir
+        # Camları temizle (Havaya çevir)
         loop {1v1::camlar::%{_kafes}%::*}:
             set block at loop-value to air
         delete {1v1::camlar::%{_kafes}%::*}
         
-        # Değişkenleri temizle
+        # Değişkenleri sıfırla
         delete {1v1::oyuncu_kafes::%victim%}
         delete {1v1::oyuncu_kafes::%{_kazanan}%}
         delete {1v1::durum::%{_kafes}%}
         delete {1v1::oyuncular::%{_kafes}%::*}
         
-        # Kazananı belirlenen XYZ'ye ışınla
+        # Kazananı ışınla
         if {1v1::cikisnoktasi} is set:
             teleport {_kazanan} to {1v1::cikisnoktasi}
-            send "&aKafes dövüşünü kazandın!" to {_kazanan}
-        else:
-            send "&cÇıkış noktası ayarlanmadığı için olduğun yerde kaldın." to {_kazanan}
+            send "&aRakibini alt ettin ve kafesten çıktın!" to {_kazanan}
 
 on quit:
-    # Biri dövüş sırasında oyundan çıkarsa diğerini galip say
     if {1v1::oyuncu_kafes::%player%} is set:
         set {_kafes} to {1v1::oyuncu_kafes::%player%}
-        
         remove player from {1v1::oyuncular::%{_kafes}%::*}
         set {_kazanan} to {1v1::oyuncular::%{_kafes}%::1}
         
-        # Camları sil
         loop {1v1::camlar::%{_kafes}%::*}:
             set block at loop-value to air
         delete {1v1::camlar::%{_kafes}%::*}
@@ -96,10 +155,9 @@ on quit:
         
         if {1v1::cikisnoktasi} is set:
             teleport {_kazanan} to {1v1::cikisnoktasi}
-            send "&aRakibin oyundan kaçtığı için kazandın!" to {_kazanan}
+            send "&aRakibin korkup kaçtığı için kazandın!" to {_kazanan}
 
 on script unload:
-    # Skript reload atıldığında veya sunucu kapandığında camların kalıcı olmaması için temizlik
     loop {1v1::kafesler::*}:
         set {_kafes} to loop-value
         loop {1v1::camlar::%{_kafes}%::*}:
