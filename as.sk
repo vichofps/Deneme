@@ -1,0 +1,114 @@
+options:
+    winner-x: 100
+    winner-y: 64
+    winner-z: 100
+    winner-world: world
+
+#
+# KAFES TANIMLARI
+#
+# /setcagepos1 <id>
+# /setcagepos2 <id>
+#
+
+command /setcagepos1 <text>:
+    permission: op
+    trigger:
+        set {cage.%arg-1%.pos1} to location of player
+        send "&aKafes %arg-1% Pos1 ayarlandı."
+
+command /setcagepos2 <text>:
+    permission: op
+    trigger:
+        set {cage.%arg-1%.pos2} to location of player
+        send "&aKafes %arg-1% Pos2 ayarlandı."
+
+#
+# KAFESE GİRİŞ KONTROLÜ
+#
+
+every 5 ticks:
+    loop all players:
+        set {_inside} to false
+
+        loop {cage::*}:
+            stop
+
+        loop {cage::*}:
+            stop
+
+        loop {cage::*}:
+            stop
+
+        loop indices of {cage::*}:
+            set {_id} to loop-index
+
+            if {cage.%{_id}%.pos1} is set:
+                if {cage.%{_id}%.pos2} is set:
+
+                    if loop-player is within cuboid between {cage.%{_id}%.pos1} and {cage.%{_id}%.pos2}:
+
+                        set {_inside} to true
+
+                        if {playercage.%uuid of loop-player%} is not {_id}:
+                            set {playercage.%uuid of loop-player%} to {_id}
+                            add loop-player to {fighters.%{_id}%::*}
+
+                            if size of {fighters.%{_id}%::*} = 2:
+                                execute console command "skript cagebuild %{_id}%"
+
+        if {_inside} is false:
+            delete {playercage.%uuid of loop-player%}
+
+#
+# KAFESİ OLUŞTUR
+#
+
+command /cagebuild <text>:
+    permission: op
+    trigger:
+        set {_id} to arg-1
+
+        set {_p1} to {cage.%{_id}%.pos1}
+        set {_p2} to {cage.%{_id}%.pos2}
+
+        loop blocks in cuboid between {_p1} and {_p2}:
+            if loop-block is air:
+                set loop-block to glass
+                add location of loop-block to {glassblocks.%{_id}%::*}
+
+#
+# ÖLÜM
+#
+
+on death:
+    victim is a player
+
+    set {_id} to {playercage.%uuid of victim%}
+
+    if {_id} is set:
+
+        remove victim from {fighters.%{_id}%::*}
+
+        if size of {fighters.%{_id}%::*} = 1:
+
+            set {_winner} to first element of {fighters.%{_id}%::*}
+
+            teleport {_winner} to location(
+                {@winner-x},
+                {@winner-y},
+                {@winner-z},
+                world("{@winner-world}")
+            )
+
+            send "&aKazandın!" to {_winner}
+
+        #
+        # CAMLARI TEMİZLE
+        #
+
+        loop {glassblocks.%{_id}%::*}:
+            set block at loop-value to air
+
+        delete {glassblocks.%{_id}%::*}
+        delete {fighters.%{_id}%::*}
